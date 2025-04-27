@@ -1,0 +1,5 @@
+<library path="rmcs_dart_guide">
+  <class type="rmcs_dart_guide::DartLauncherGuidance" base_class_type="rmcs_executor::Component">
+    <description>Test plugin.</description>
+  </class>
+</library>
