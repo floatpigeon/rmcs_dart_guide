@@ -13,7 +13,10 @@ public:
         : Node(get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
         , logger_(get_logger()) {}
 
-    void update() override { RCLCPP_INFO(logger_, "test"); }
+    void update() override {
+        //
+        // RCLCPP_INFO(logger_, "test");
+    }
 
 private:
     rclcpp::Logger logger_;
