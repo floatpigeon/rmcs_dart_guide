@@ -1,4 +1,6 @@
 #include "point_cloud_process.hpp"
+#include <memory>
+#include <mutex>
 #include <pcl/conversions.h>
 #include <pcl/impl/point_types.hpp>
 #include <pcl/point_cloud.h>
@@ -8,19 +10,20 @@
 #include <rclcpp/node.hpp>
 #include <rclcpp/publisher.hpp>
 #include <rclcpp/qos.hpp>
+#include <rclcpp/time.hpp>
 #include <rmcs_executor/component.hpp>
 #include <sensor_msgs/msg/detail/point_cloud2__struct.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
 #include <sensor_msgs/msg/point_field.hpp>
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2_ros/transform_broadcaster.h>
+#include <thread>
 
 namespace rmcs_dart_guide {
 
 class LidarController
     : public rmcs_executor::Component
     , public rclcpp::Node {
-
 public:
     LidarController()
         : Node(get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
@@ -41,39 +44,40 @@ public:
 
 private:
     void lidar_data_callback(const sensor_msgs::msg::PointCloud2::SharedPtr msg) {
-        auto time_stamped = this->get_clock()->now();
+        message_time_stamped = this->get_clock()->now();
         pcl::PointCloud<pcl::PointXYZ>::Ptr original_cloud(new pcl::PointCloud<pcl::PointXYZ>());
         pcl::fromROSMsg(*msg, *original_cloud);
 
         pcl::PointCloud<pcl::PointXYZ>::Ptr filtered_cloud(new pcl::PointCloud<pcl::PointXYZ>());
-        PointCloudProcess::ground_point_filter(original_cloud, filtered_cloud);
+        PointCloudProcess::box_filter_and_downsample(original_cloud, filtered_cloud);
 
         sensor_msgs::msg::PointCloud2 point_cloud_msg;
 
         pcl::toROSMsg(*filtered_cloud, point_cloud_msg);
-        point_cloud_msg.header.stamp    = time_stamped;
+        point_cloud_msg.header.stamp    = message_time_stamped;
         point_cloud_msg.header.frame_id = "lidar";
         pointcloud_publisher_->publish(point_cloud_msg);
+
+        lidar_coordinate_axis_publish();
 
         RCLCPP_INFO(
             logger_, "point cloud received,num: %d,filterd num: %d", msg->width * msg->height,
             point_cloud_msg.width * point_cloud_msg.height);
-        RCLCPP_INFO(
-            logger_, "frame_id:livox:%s processed:%s", msg->header.frame_id.c_str(),
-            point_cloud_msg.header.frame_id.c_str());
-        // === 2. 构造并发布 TF 变换 ===
-        // 这个变换描述了点云所在的坐标系 ("lidar") 相对于 RViz Fixed Frame ("world") 的位置和姿态。
+    }
 
+    void lidar_coordinate_axis_publish() {
+        // === 构造并发布 TF 变换 ===
+        // 这个变换描述了点云所在的坐标系 ("lidar") 相对于 RViz Fixed Frame ("world") 的位置和姿态。
         geometry_msgs::msg::TransformStamped transform_stamped;
 
-        transform_stamped.header.stamp    = time_stamped; // 和点云使用相同的时间戳
-        transform_stamped.header.frame_id = "world";      // 父坐标系 (RViz 通常以此为 Fixed Frame)
-        transform_stamped.child_frame_id  = "lidar";      // 子坐标系 (点云的 frame_id)
+        transform_stamped.header.stamp    = message_time_stamped; // 和点云使用相同的时间戳
+        transform_stamped.header.frame_id = "world";              // 父坐标系 (RViz 通常以此为 Fixed Frame)
+        transform_stamped.child_frame_id  = "lidar";              // 子坐标系 (点云的 frame_id)
 
         // 设置平移 (Translate "lidar" relative to "world")
         transform_stamped.transform.translation.x = 0.0;
         transform_stamped.transform.translation.y = 0.0;
-        transform_stamped.transform.translation.z = -1.0;
+        transform_stamped.transform.translation.z = 1.0;
 
         // 设置旋转 (Rotate "lidar" relative to "world")
         tf2::Quaternion q;
@@ -87,15 +91,65 @@ private:
 
         // 发布 TF 变换
         tf_broadcaster_->sendTransform(transform_stamped);
-        // RCLCPP_INFO(this->get_logger(), "Published TF transform from 'world' to 'lidar'");
     }
 
     rclcpp::Logger logger_;
+
+    rclcpp::Time message_time_stamped;
     std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
 
     rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr pointcloud_subscriber_;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pointcloud_publisher_;
     pcl::PointCloud<pcl::PointXYZ>::Ptr pcl_cloud_;
+
+    void lidar_data_callback_beta(const sensor_msgs::msg::PointCloud2::SharedPtr msg) {
+        pcl::PointCloud<pcl::PointXYZ>::Ptr original_cloud(new pcl::PointCloud<pcl::PointXYZ>());
+        pcl::fromROSMsg(*msg, *original_cloud);
+        lidar_pointcloud_queue_.push_back(original_cloud);
+
+        pcl::PointCloud<pcl::PointXYZ>::Ptr filtered_cloud(new pcl::PointCloud<pcl::PointXYZ>());
+        if (lidar_pointcloud_queue_.size() == 10) {
+            measure_begin_flag_ = true;
+        }
+
+        PointCloudProcess::box_filter_and_downsample(original_cloud, filtered_cloud);
+
+        // 发布部分
+        message_time_stamped = this->get_clock()->now();
+        sensor_msgs::msg::PointCloud2 point_cloud_msg;
+        pcl::toROSMsg(*filtered_cloud, point_cloud_msg);
+        point_cloud_msg.header.stamp    = message_time_stamped;
+        point_cloud_msg.header.frame_id = "lidar";
+        pointcloud_publisher_->publish(point_cloud_msg);
+
+        lidar_coordinate_axis_publish();
+
+        RCLCPP_INFO(
+            logger_, "point cloud received,num: %d,filterd num: %d", msg->width * msg->height,
+            point_cloud_msg.width * point_cloud_msg.height);
+    }
+
+    void distance_measure() {
+        while (true) {
+            if (measure_begin_flag_ == false)
+                continue;
+
+            pcl::PointCloud<pcl ::PointXYZ>::Ptr integral_pointcloud =
+                std::make_shared<pcl::PointCloud<pcl::PointXYZ>>();
+
+            pcl::PointCloud<pcl ::PointXYZ>::Ptr filtered_pointcloud =
+                std::make_shared<pcl::PointCloud<pcl::PointXYZ>>();
+
+            PointCloudProcess::box_filter_and_downsample(integral_pointcloud, filtered_pointcloud);
+        }
+    }
+
+    pcl::PointCloud<pcl ::PointXYZ>::Ptr integral_pointcloud = std::make_shared<pcl::PointCloud<pcl::PointXYZ>>();
+    std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> lidar_pointcloud_queue_;
+
+    std::atomic<bool> measure_begin_flag_ = false;
+    std::thread distance_measure_thread_;
+    std::mutex distance_measure_thread_mtx;
 };
 } // namespace rmcs_dart_guide
 
