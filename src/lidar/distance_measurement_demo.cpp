@@ -37,6 +37,7 @@ public:
         : Node(get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
         , logger_(get_logger()) {
 
+        integral_frame_num_    = 30;
         pointcloud_subscriber_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
             "/livox/lidar", rclcpp::SystemDefaultsQoS(),
             std::bind(&DistanceMeasureDemo::lidar_data_callback, this, std::placeholders::_1));
@@ -77,12 +78,13 @@ private:
         }
         integral_frame_count_++;
 
-        if (integral_frame_count_ == 20) {
+        if (integral_frame_count_ == integral_frame_num_) {
             measure_start_flag_ = true;
             RCLCPP_INFO(logger_, "start measure");
         }
     }
 
+    int integral_frame_num_ = 30;
     PointCloudT::Ptr integral_pointcloud_;
     std::atomic<int> integral_frame_count_ = 0;
     std::atomic<bool> measure_start_flag_  = false;

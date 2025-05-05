@@ -37,4 +37,26 @@ install(TARGETS ${PROJECT_NAME}
 target_link_libraries(${PROJECT_NAME} ${OpenCV_LIBS} -lpthread)
 pluginlib_export_plugin_description_file(rmcs_executor plugins.xml)
 
+
+# Add save_pointcloud_node
+add_executable(pointcloud_save_node src/pointcloud_data/save_pointcloud_files.cpp)
+
+ament_target_dependencies(pointcloud_save_node
+  rclcpp
+  sensor_msgs
+  pcl_conversions
+)
+
+target_include_directories(pointcloud_save_node PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>)
+
+  # 链接 PCL 库
+target_link_libraries(pointcloud_save_node
+  ${PCL_LIBRARIES}
+)
+
+install(TARGETS pointcloud_save_node
+  DESTINATION lib/${PROJECT_NAME})
+
 ament_package()
