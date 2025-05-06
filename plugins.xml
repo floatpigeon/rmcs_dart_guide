@@ -8,4 +8,10 @@
   <class type="rmcs_dart_guide::DistanceMeasureDemo" base_class_type="rmcs_executor::Component">
     <description>Test plugin.</description>
   </class>
+  <class type="rmcs_dart_guide::ImagePublisher" base_class_type="rmcs_executor::Component">
+    <description>Test plugin.</description>
+  </class>
+  <class type="rmcs_dart_guide::DartCameraController" base_class_type="rmcs_executor::Component">
+    <description>Test plugin.</description>
+  </class>
 </library>
