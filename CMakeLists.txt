@@ -39,7 +39,7 @@ pluginlib_export_plugin_description_file(rmcs_executor plugins.xml)
 
 
 # Add save_pointcloud_node
-add_executable(pointcloud_save_node src/pointcloud_data/save_pointcloud_files.cpp)
+add_executable(pointcloud_save_node src/pointcloud_data/lidar_data_save_node.cpp)
 
 ament_target_dependencies(pointcloud_save_node
   rclcpp
@@ -51,7 +51,6 @@ target_include_directories(pointcloud_save_node PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>)
 
-  # 链接 PCL 库
 target_link_libraries(pointcloud_save_node
   ${PCL_LIBRARIES}
 )
