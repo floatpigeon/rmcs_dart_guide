@@ -10,7 +10,7 @@
 #include <vector>
 namespace rmcs_dart_guide {
 
-using PointT = cv::Point2d;
+using PointT = cv::Point2i;
 
 struct TargetData {
     PointT first_position;
@@ -20,9 +20,9 @@ struct TargetData {
     int miss_count;
 };
 
-class Identifier : rclcpp::Node {
+class DartGuideIdentifier : rclcpp::Node {
 public:
-    Identifier()
+    DartGuideIdentifier()
         : Node(
               "dart_guide_Identifier", rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
         , logger_(get_logger()) {
@@ -41,20 +41,20 @@ public:
     }
 
     std::chrono::steady_clock::time_point begin_time_;
-    void update(const cv::Mat& image) {
-        if (result_ready_) { // debug
+    void update(const cv::Mat& binary_image) {
+        // debug
+        if (result_ready_) {
             Init();
             begin_time_ = std::chrono::steady_clock::now();
         }
         //
 
-        std::vector<PointT> possible_targets = preprocess(image);
-        // RCLCPP_INFO(logger_, "preprocessed num:%zu", possible_targets.size());
+        std::vector<PointT> possible_targets = process(binary_image);
         target_filter(possible_targets);
 
         detect_frame_count_++;
 
-        if (detect_frame_count_ < 100) {
+        if (detect_frame_count_ < 80) {
             return;
         }
 
@@ -79,16 +79,20 @@ public:
             }
             target_initial_position_ = possible_targets_collection_[most_possible_target_id].latest_position;
             result_ready_            = true;
-            auto end_time_           = std::chrono::steady_clock::now();
+
+            // debug
+            auto end_time_ = std::chrono::steady_clock::now();
             auto delta_time =
                 std::chrono::duration_cast<std::chrono::milliseconds>(end_time_ - begin_time_).count();
             RCLCPP_INFO(logger_, "delta_time:%ldms", delta_time);
+            //
         }
     }
 
     cv::Mat get_display_image() { return display_image_; }
     bool result_status_() const { return result_ready_; }
     PointT get_result() { return target_initial_position_; }
+    // cv::Rect2i get_init_rect() {}
 
 private:
     rclcpp::Logger logger_;
@@ -102,45 +106,8 @@ private:
     bool result_ready_ = false;
 
     // Image Procss Methods
-    std::vector<PointT> image_preprocess(const cv::Mat& src) {
-        cv::Mat HSV_image;
-        cv::cvtColor(src, HSV_image, cv::COLOR_BGR2HSV);
 
-        cv::Mat binary;
-        cv::inRange(HSV_image, lower_limit_, upper_limit_, binary);
-
-        static cv::Mat kernel = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(9, 9));
-        cv::morphologyEx(binary, binary, cv::MORPH_OPEN, kernel);
-        cv::morphologyEx(binary, binary, cv::MORPH_CLOSE, kernel);
-        display_image_ = binary;
-
-        std::vector<cv::Vec3f> circles;
-        cv::HoughCircles(binary, circles, cv::HOUGH_GRADIENT, 1.0, binary.rows / 10.0, 50, 30, 3, 100);
-
-        std::vector<PointT> possible_targets;
-        for (const auto& circle : circles) {
-            PointT center(cvRound(circle[0]), cvRound(circle[1]));
-            int radius = cvRound(circle[2]);
-            cv::circle(display_image_, center, radius, cv::Scalar(255, 0, 255), 3);
-            possible_targets.emplace_back(center);
-        }
-
-        return possible_targets;
-    }
-
-    std::vector<PointT> preprocess(const cv::Mat& src) {
-        cv::Mat HSV_image;
-        cv::cvtColor(src, HSV_image, cv::COLOR_BGR2HSV);
-
-        cv::Mat binary;
-        cv::inRange(HSV_image, lower_limit_, upper_limit_, binary);
-
-        static cv::Mat kernel = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(9, 9));
-        cv::morphologyEx(binary, binary, cv::MORPH_OPEN, kernel);
-        cv::morphologyEx(binary, binary, cv::MORPH_CLOSE, kernel);
-        display_image_ = binary;
-
-        // 轮廓检测
+    static std::vector<PointT> process(const cv::Mat& binary) {
         std::vector<std::vector<cv::Point>> contours;
         std::vector<cv::Vec4i> hierarchy;
         cv::findContours(binary, contours, hierarchy, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
@@ -163,9 +130,8 @@ private:
                 area_ratio = area / enclosing_circle_area;
             }
 
-            // 圆形度阈值，轮廓面积应接近其最小外接圆的面积
-            // 对于一个完美的实心圆，这个比率接近1。考虑到像素化等因素，可以设置如0.75-0.8以上。
-            if (area_ratio > 0.7) {
+            // 对于一个完美的实心圆，这个比率接近1。考虑到像素化等因素，可以设置如0.7-0.8
+            if (area_ratio >= 0.8) {
                 possible_targets.emplace_back(circle_center);
             }
         }
@@ -224,3 +190,81 @@ private:
     }
 };
 } // namespace rmcs_dart_guide
+
+/*
+old methods
+---------------------------------------------------------------------------------------------------
+
+    // std::vector<PointT> preprocess(const cv::Mat& src) {
+    //     cv::Mat HSV_image;
+    //     cv::cvtColor(src, HSV_image, cv::COLOR_BGR2HSV);
+
+    //     cv::Mat binary;
+    //     cv::inRange(HSV_image, lower_limit_, upper_limit_, binary);
+
+    //     static cv::Mat kernel = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(9, 9));
+    //     cv::morphologyEx(binary, binary, cv::MORPH_OPEN, kernel);
+    //     cv::morphologyEx(binary, binary, cv::MORPH_CLOSE, kernel);
+    //     display_image_ = binary;
+
+    //     std::vector<std::vector<cv::Point>> contours;
+    //     std::vector<cv::Vec4i> hierarchy;
+    //     cv::findContours(binary, contours, hierarchy, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+
+    //     std::vector<PointT> possible_targets;
+    //     for (const auto& contour : contours) {
+    //         double area = cv::contourArea(contour);
+
+    //         if (area < 100 || area > 5000)
+    //             continue;
+    //         if (contour.size() < 5)
+    //             continue;
+
+    //         cv::Point2f circle_center;
+    //         float circle_radius;
+    //         cv::minEnclosingCircle(contour, circle_center, circle_radius);
+    //         double enclosing_circle_area = CV_PI * circle_radius * circle_radius;
+    //         double area_ratio            = 0;
+    //         if (enclosing_circle_area > 0) {
+    //             area_ratio = area / enclosing_circle_area;
+    //         }
+
+    //         // 对于一个完美的实心圆，这个比率接近1。考虑到像素化等因素，可以设置如0.7-0.8
+    //         if (area_ratio >= 0.8) {
+    //             possible_targets.emplace_back(circle_center);
+    //         }
+    //     }
+
+    //     return possible_targets;
+    // }
+
+---------------------------------------------------------------------------------------------------
+
+    // std::vector<PointT> image_preprocess(const cv::Mat& src) {
+    //     cv::Mat HSV_image;
+    //     cv::cvtColor(src, HSV_image, cv::COLOR_BGR2HSV);
+
+    //     cv::Mat binary;
+    //     cv::inRange(HSV_image, lower_limit_, upper_limit_, binary);
+
+    //     static cv::Mat kernel = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(9, 9));
+    //     cv::morphologyEx(binary, binary, cv::MORPH_OPEN, kernel);
+    //     cv::morphologyEx(binary, binary, cv::MORPH_CLOSE, kernel);
+    //     display_image_ = binary;
+
+    //     std::vector<cv::Vec3f> circles;
+    //     cv::HoughCircles(binary, circles, cv::HOUGH_GRADIENT, 1.0, binary.rows / 10.0, 50, 30, 3, 100);
+
+    //     std::vector<PointT> possible_targets;
+    //     for (const auto& circle : circles) {
+    //         PointT center(cvRound(circle[0]), cvRound(circle[1]));
+    //         int radius = cvRound(circle[2]);
+    //         cv::circle(display_image_, center, radius, cv::Scalar(255, 0, 255), 3);
+    //         possible_targets.emplace_back(center);
+    //     }
+
+    //     return possible_targets;
+    // }
+---------------------------------------------------------------------------------------------------
+
+*/
