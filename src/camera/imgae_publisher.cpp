@@ -27,7 +27,7 @@ public:
         register_input(get_parameter("Interface_name").as_string(), input_image_);
 
         image_publisher_ =
-            this->create_publisher<sensor_msgs::msg::Image>(get_parameter("topic_name").as_string(), 100);
+            this->create_publisher<sensor_msgs::msg::Image>(get_parameter("topic_name").as_string(), 1000);
 
         publish_freq_ = get_parameter("publish_freq").as_double();
         publish_freq_ = MAX(0, MIN(publish_freq_, 1000));

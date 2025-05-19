@@ -1,3 +1,5 @@
+#include <cmath>
+#include <opencv2/core/types.hpp>
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
@@ -11,15 +13,28 @@ class DartLauncherGuidance
 public:
     DartLauncherGuidance()
         : Node(get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
-        , logger_(get_logger()) {}
+        , logger_(get_logger()) {
 
-    void update() override {
-        //
-        // RCLCPP_INFO(logger_, "test");
+        register_input("/dart_guide/target_position", target_position_);
+        register_input("/dart/imu/pitch_angle", dart_current_pitch_angle_);
+
+        register_output("/dart_guide/yaw_angle_error", yaw_angle_error_, nan);
+        register_output("/dart_guide/pitch_angle_setpoint", pitch_angle_setpoint_);
     }
+
+    void update() override {}
 
 private:
     rclcpp::Logger logger_;
+    static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
+
+    InputInterface<cv::Point2i> target_position_;
+    InputInterface<double> dart_current_pitch_angle_;
+
+    InputInterface<int> dart_launch_count_;
+
+    OutputInterface<double> yaw_angle_error_;
+    OutputInterface<double> pitch_angle_setpoint_;
 };
 } // namespace rmcs_dart_guide
 

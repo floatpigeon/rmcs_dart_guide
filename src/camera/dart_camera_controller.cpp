@@ -40,6 +40,7 @@ public:
 
         register_output("/dart_guide/camera_image", camera_image_);
         register_output("/dart_guide/display_image", display_image_);
+        register_output("/dart_guide/target_position", target_position_);
         camera_thread_ = std::thread(&DartCameraController::camera_update, this);
     }
 
@@ -57,9 +58,10 @@ private:
             cv::Mat display = preprocessed_image.clone();
             if (!is_tracker_stage_) {
                 identifdier_.update(preprocessed_image);
-                cv::putText(
-                    display, "Identifing", cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(255, 0, 255),
-                    2);
+
+                // cv::putText(
+                //     display, "Identifing", cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(255, 0,
+                //     255), 2);
 
                 if (!identifdier_.result_status_()) {
                     *display_image_ = display;
@@ -78,11 +80,12 @@ private:
                 cv::Point2i current_position = tracker_.get_current_position();
                 RCLCPP_INFO(logger_, "current:(%d,%d)", current_position.x, current_position.y);
 
-                cv::putText(
-                    display, "Tracking", cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(255, 0, 255),
-                    2);
+                // cv::putText(
+                //     display, "Tracking", cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(255, 0,
+                //     255), 2);
 
-                cv::circle(display, current_position, 25, cv::Scalar(255, 0, 255), 2);
+                cv::circle(display, current_position, 20, cv::Scalar(255, 0, 255), 2);
+                *target_position_ = current_position;
             }
 
             *display_image_ = display;
@@ -115,6 +118,8 @@ private:
 
     OutputInterface<cv::Mat> camera_image_;
     OutputInterface<cv::Mat> display_image_;
+
+    OutputInterface<cv::Point2i> target_position_;
 
     DartGuideIdentifier identifdier_;
     DartGuideTracker tracker_;
