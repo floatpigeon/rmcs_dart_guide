@@ -38,9 +38,9 @@ public:
         identifdier_.set_default_limit(lower_limit_default_, upper_limit_default_);
         identifdier_.Init();
 
-        register_output("/dart_guide/camera_image", camera_image_);
-        register_output("/dart_guide/display_image", display_image_);
-        register_output("/dart_guide/target_position", target_position_);
+        register_output("/dart_guide/camera/camera_image", camera_image_);
+        register_output("/dart_guide/camera/display_image", display_image_);
+        register_output("/dart_guide/camera/target_position", target_position_);
         camera_thread_ = std::thread(&DartCameraController::camera_update, this);
     }
 
@@ -68,8 +68,7 @@ private:
                     continue;
                 } else {
                     cv::Point2i initial_position_ = identifdier_.get_result();
-                    RCLCPP_INFO(
-                        logger_, "target initial position:(%d,%d)", initial_position_.x, initial_position_.y);
+                    RCLCPP_INFO(logger_, "target initial position:(%d,%d)", initial_position_.x, initial_position_.y);
 
                     is_tracker_stage_ = true;
                     tracker_.init(initial_position_);
