@@ -59,9 +59,8 @@ private:
             if (!is_tracker_stage_) {
                 identifdier_.update(preprocessed_image);
 
-                // cv::putText(
-                //     display, "Identifing", cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(255, 0,
-                //     255), 2);
+                cv::putText(
+                    display, "Identifing", cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(255, 0, 255), 2);
 
                 if (!identifdier_.result_status_()) {
                     *display_image_ = display;
@@ -79,9 +78,19 @@ private:
                 cv::Point2i current_position = tracker_.get_current_position();
                 RCLCPP_INFO(logger_, "current:(%d,%d)", current_position.x, current_position.y);
 
-                // cv::putText(
-                //     display, "Tracking", cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(255, 0,
-                //     255), 2);
+                cv::putText(
+                    display, tracker_.get_tracking_status() ? "Tracking" : "Loss", cv::Point(10, 30),
+                    cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(255, 0, 255), 2);
+
+                if (!tracker_.get_tracking_status()) {
+                    tracker_loss_count_++;
+                } else {
+                    tracker_loss_count_ = 0;
+                }
+                if (tracker_loss_count_ > 100) {
+                    is_tracker_stage_ = false;
+                    identifdier_.Init();
+                }
 
                 cv::circle(display, current_position, 20, cv::Scalar(255, 0, 255), 2);
                 *target_position_ = current_position;
@@ -122,7 +131,8 @@ private:
 
     DartGuideIdentifier identifdier_;
     DartGuideTracker tracker_;
-    bool is_tracker_stage_ = false;
+    bool is_tracker_stage_  = false;
+    int tracker_loss_count_ = 0;
 };
 } // namespace rmcs_dart_guide
 

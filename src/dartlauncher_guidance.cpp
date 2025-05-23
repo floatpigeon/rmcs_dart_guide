@@ -15,42 +15,30 @@ public:
         : Node(get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
         , logger_(get_logger()) {
 
-        register_input("/dart_guide/camera/target_position", target_position_, false);
-        register_input("/dart/pitch_angle/current_angle", dart_current_pitch_angle_, false);
-
-        register_input("/dart/launch_count", dart_launch_count_, false);
-        register_output("/dart_guide/pitch_angle_lock", pitch_lock_, true);
-        register_output("/dart_guide/fire_command", fire_command_, false);
-
-        register_output("/dart_guide/yaw_angle_error", yaw_angle_error_, nan);
-        register_output("/dart_guide/pitch_angle_setpoint", pitch_angle_setpoint_);
-
-        pitch_default_setpoint_  = get_parameter("default_pitch").as_double();
         guidelight_yaw_setpoint_ = get_parameter("guidelight_yaw_setpoint").as_double();
+
+        register_input("/dart_guide/camera/target_position", target_position_, false);
+        register_output("/dart_guide/yaw_angle_error", yaw_angle_error_, nan);
+        register_output("/dart_guide/guide_ready", guide_ready_, false);
     }
 
     void update() override {
-        if (*dart_launch_count_ == 0) {
-            *pitch_angle_setpoint_ = pitch_default_setpoint_;
-        }
         *yaw_angle_error_ = guidelight_yaw_setpoint_ - target_position_->x;
+        guide_ready_judge();
     }
 
 private:
+    void guide_ready_judge() {
+        // TODO:
+    }
+
     rclcpp::Logger logger_;
     static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
 
     InputInterface<cv::Point2i> target_position_;
-    InputInterface<double> dart_current_pitch_angle_;
-
-    InputInterface<int> dart_launch_count_;
-    OutputInterface<bool> pitch_lock_;
-    OutputInterface<bool> fire_command_;
-
     OutputInterface<double> yaw_angle_error_;
-    OutputInterface<double> pitch_angle_setpoint_;
+    OutputInterface<bool> guide_ready_;
 
-    double pitch_default_setpoint_;
     double guidelight_yaw_setpoint_;
 };
 } // namespace rmcs_dart_guide

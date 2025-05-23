@@ -63,15 +63,21 @@ public:
 
         if (found_match && min_dist < max_distance_threshold_) {
             current_position_ = cv::Point2i(std::round(best_centroid.x), std::round(best_centroid.y));
+            tracking_flag_    = true;
         } else {
             RCLCPP_WARN(logger_, "lose target");
+            tracking_flag_ = false;
         }
     }
 
     cv::Point2i get_current_position() const { return current_position_; }
 
+    bool get_tracking_status() const { return tracking_flag_; }
+
 private:
     rclcpp::Logger logger_;
+
+    bool tracking_flag_;
 
     cv::Point2i current_position_;
     bool is_initialized_;
