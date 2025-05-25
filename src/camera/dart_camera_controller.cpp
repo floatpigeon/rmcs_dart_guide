@@ -40,7 +40,7 @@ public:
 
         register_output("/dart_guide/camera/camera_image", camera_image_);
         register_output("/dart_guide/camera/display_image", display_image_);
-        register_output("/dart_guide/camera/target_position", target_position_);
+        register_output("/dart_guide/camera/target_position", target_position_, PointT(-1, -1));
         camera_thread_ = std::thread(&DartCameraController::camera_update, this);
     }
 
@@ -67,11 +67,13 @@ private:
                     continue;
                 } else {
                     cv::Point2i initial_position_ = identifdier_.get_result();
-                    RCLCPP_INFO(logger_, "target initial position:(%d,%d)", initial_position_.x, initial_position_.y);
+                    // RCLCPP_INFO(logger_, "target initial position:(%d,%d)", initial_position_.x,
+                    // initial_position_.y);
 
                     is_tracker_stage_ = true;
                     tracker_.init(initial_position_);
                 }
+                *target_position_ = PointT(-1, -1);
             } else {
                 // tracker enable
                 tracker_.update(preprocessed_image);
@@ -84,16 +86,17 @@ private:
 
                 if (!tracker_.get_tracking_status()) {
                     tracker_loss_count_++;
+                    *target_position_ = PointT(-1, -1);
                 } else {
                     tracker_loss_count_ = 0;
+                    *target_position_   = current_position;
+                    cv::circle(display, current_position, 20, cv::Scalar(255, 0, 255), 2);
                 }
+
                 if (tracker_loss_count_ > 100) {
                     is_tracker_stage_ = false;
                     identifdier_.Init();
                 }
-
-                cv::circle(display, current_position, 20, cv::Scalar(255, 0, 255), 2);
-                *target_position_ = current_position;
             }
 
             *display_image_ = display;
