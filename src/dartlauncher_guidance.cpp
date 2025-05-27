@@ -31,6 +31,8 @@ public:
         register_input("/remote/joystick/left", input_joystick_left_, false);
         register_input("/remote/joystick/right", input_joystick_right_, false);
 
+        register_input("/dart/conveyor/velocity", conveyor_current_velocity_, false);
+
         // register_input("/referee/game/stage", game_stage_);
     }
 
@@ -52,10 +54,17 @@ public:
         // RCLCPP_INFO(logger_, "error:%lf,,current:(%d,%d)", *yaw_angle_error_, target_position_->x,
         // target_position_->y);
         guide_ready_judge();
+    }
+
+private:
+    void guide_ready_judge() {
+        // TODO:
+        if (*conveyor_current_velocity_ < -60) {
+            *guide_ready_ = false;
+        }
+
         if (*input_switch_left_ == rmcs_msgs::Switch::UP && *input_switch_right_ == rmcs_msgs::Switch::UP) {
             *guide_ready_ = true;
-        } else {
-            *guide_ready_ = false;
         }
 
         if (*input_switch_left_ == rmcs_msgs::Switch::DOWN && *input_switch_right_ == rmcs_msgs::Switch::DOWN) {
@@ -64,11 +73,6 @@ public:
         } else {
             *stop_all_ = false;
         }
-    }
-
-private:
-    void guide_ready_judge() {
-        // TODO:
     }
 
     void update_guide_status() {}
@@ -87,6 +91,7 @@ private:
     InputInterface<Eigen::Vector2d> input_joystick_right_;
 
     InputInterface<rmcs_msgs::GameStage> game_stage_;
+    InputInterface<double> conveyor_current_velocity_;
     bool dart_guide_enable_;
 
     double guidelight_yaw_setpoint_;
