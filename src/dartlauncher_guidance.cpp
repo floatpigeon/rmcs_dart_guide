@@ -1,9 +1,11 @@
 #include <cmath>
+#include <eigen3/Eigen/Dense>
 #include <opencv2/core/types.hpp>
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
+#include <rmcs_msgs/game_stage.hpp>
 #include <rmcs_msgs/switch.hpp>
 
 namespace rmcs_dart_guide {
@@ -24,26 +26,39 @@ public:
         register_output("/dart_guide/stop_all", stop_all_, false);
 
         //
-        register_input("/remote/switch/left", left_switch_, false);
-        register_input("/remote/switch/right", right_switch_, false);
+        register_input("/remote/switch/left", input_switch_left_, false);
+        register_input("/remote/switch/right", input_switch_right_, false);
+        register_input("/remote/joystick/left", input_joystick_left_, false);
+        register_input("/remote/joystick/right", input_joystick_right_, false);
+
+        // register_input("/referee/game/stage", game_stage_);
     }
 
     void update() override {
-        if (target_position_->x == -1 || target_position_->y == -1) {
-            *yaw_angle_error_ = nan;
+        if (*input_switch_left_ == rmcs_msgs::Switch::UP && *input_switch_right_ == rmcs_msgs::Switch::DOWN) {
+            dart_guide_enable_ = false;
+            *yaw_angle_error_  = 30 * input_joystick_right_->y();
         } else {
-            *yaw_angle_error_ = guidelight_yaw_setpoint_ - target_position_->x;
+            dart_guide_enable_ = true;
+        }
+        if (dart_guide_enable_) {
+            if (target_position_->x == -1 || target_position_->y == -1) {
+                *yaw_angle_error_ = nan;
+            } else {
+                *yaw_angle_error_ = guidelight_yaw_setpoint_ - target_position_->x;
+            }
         }
 
-        RCLCPP_INFO(logger_, "error:%lf,,current:(%d,%d)", *yaw_angle_error_, target_position_->x, target_position_->y);
+        // RCLCPP_INFO(logger_, "error:%lf,,current:(%d,%d)", *yaw_angle_error_, target_position_->x,
+        // target_position_->y);
         guide_ready_judge();
-        if (*left_switch_ == rmcs_msgs::Switch::UP && *right_switch_ == rmcs_msgs::Switch::UP) {
+        if (*input_switch_left_ == rmcs_msgs::Switch::UP && *input_switch_right_ == rmcs_msgs::Switch::UP) {
             *guide_ready_ = true;
         } else {
             *guide_ready_ = false;
         }
 
-        if (*left_switch_ == rmcs_msgs::Switch::DOWN && *right_switch_ == rmcs_msgs::Switch::DOWN) {
+        if (*input_switch_left_ == rmcs_msgs::Switch::DOWN && *input_switch_right_ == rmcs_msgs::Switch::DOWN) {
             *stop_all_    = true;
             *guide_ready_ = false;
         } else {
@@ -56,6 +71,8 @@ private:
         // TODO:
     }
 
+    void update_guide_status() {}
+
     rclcpp::Logger logger_;
     static constexpr double nan = std::numeric_limits<double>::quiet_NaN();
 
@@ -64,8 +81,13 @@ private:
     OutputInterface<bool> guide_ready_;
     OutputInterface<bool> stop_all_;
 
-    InputInterface<rmcs_msgs::Switch> left_switch_;
-    InputInterface<rmcs_msgs::Switch> right_switch_;
+    InputInterface<rmcs_msgs::Switch> input_switch_left_;
+    InputInterface<rmcs_msgs::Switch> input_switch_right_;
+    InputInterface<Eigen::Vector2d> input_joystick_left_;
+    InputInterface<Eigen::Vector2d> input_joystick_right_;
+
+    InputInterface<rmcs_msgs::GameStage> game_stage_;
+    bool dart_guide_enable_;
 
     double guidelight_yaw_setpoint_;
 };

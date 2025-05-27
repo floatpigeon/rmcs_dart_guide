@@ -23,8 +23,7 @@ struct TargetData {
 class DartGuideIdentifier : rclcpp::Node {
 public:
     DartGuideIdentifier()
-        : Node(
-              "dart_guide_Identifier", rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
+        : Node("dart_guide_Identifier", rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
         , logger_(get_logger()) {
         Init();
     }
@@ -81,9 +80,8 @@ public:
             result_ready_            = true;
 
             // debug
-            auto end_time_ = std::chrono::steady_clock::now();
-            auto delta_time =
-                std::chrono::duration_cast<std::chrono::milliseconds>(end_time_ - begin_time_).count();
+            auto end_time_  = std::chrono::steady_clock::now();
+            auto delta_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time_ - begin_time_).count();
             RCLCPP_INFO(logger_, "delta_time:%ldms", delta_time);
             //
         }
@@ -116,7 +114,7 @@ private:
         for (const auto& contour : contours) {
             double area = cv::contourArea(contour);
 
-            if (area < 100 || area > 5000)
+            if (area < 64 || area > 5000)
                 continue;
             if (contour.size() < 5)
                 continue;
