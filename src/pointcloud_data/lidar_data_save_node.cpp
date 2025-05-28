@@ -17,7 +17,7 @@ public:
         : Node("pointcloud_save")
         , logger_(get_logger()) {
 
-        record_frame_num_ = 30;
+        record_frame_num_ = 100;
 
         pointcloud_subscriber_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
             "/livox/lidar", rclcpp::SystemDefaultsQoS(),
@@ -25,8 +25,7 @@ public:
 
         integral_pointcloud_ = std::make_shared<PointCloudT>();
 
-        output_filename_ =
-            "/workspaces/RMCS/rmcs_ws/src/rmcs_dart_guide/src/pointcloud_data/scence_pointcloud.pcd";
+        output_filename_ = "/workspaces/RMCS/rmcs_ws/src/rmcs_dart_guide/src/pointcloud_data/redbase_pointcloud.pcd";
         // output_filename_ =
         //     "/workspaces/RMCS/rmcs_ws/src/rmcs_dart_guide/src/point_cloud_files/record_original_pointcloud.pcd";
 
@@ -46,19 +45,18 @@ private:
         pointcloud_frame_count_++;
 
         RCLCPP_INFO(logger_, "save node working...(%d/%d)", pointcloud_frame_count_, record_frame_num_);
-        if (pointcloud_frame_count_ == 30) {
+        if (pointcloud_frame_count_ == 100) {
 
-            pcl::PointCloud<pcl::PointXYZ>::Ptr box_filtered_cloud(new pcl::PointCloud<pcl::PointXYZ>());
-            box_filter(integral_pointcloud_, box_filtered_cloud);
-            int return_status = pcl::io::savePCDFileBinary(output_filename_, *box_filtered_cloud);
+            // pcl::PointCloud<pcl::PointXYZ>::Ptr box_filtered_cloud(new pcl::PointCloud<pcl::PointXYZ>());
+            // box_filter(integral_pointcloud_, box_filtered_cloud);
+            int return_status = pcl::io::savePCDFileBinary(output_filename_, *integral_pointcloud_);
 
             // int return_status = pcl::io::savePCDFileBinary(output_filename_, *integral_pointcloud_);
 
             if (return_status == 0) {
                 RCLCPP_INFO(logger_, "Successfully saved %s", output_filename_.c_str());
             } else {
-                RCLCPP_ERROR(
-                    logger_, "Failed to save %s (Error code: %d)", output_filename_.c_str(), return_status);
+                RCLCPP_ERROR(logger_, "Failed to save %s (Error code: %d)", output_filename_.c_str(), return_status);
             }
 
             RCLCPP_INFO(logger_, "pcd file save compelete, now can exit");
@@ -66,8 +64,7 @@ private:
         }
     }
 
-    static void
-        box_filter(pcl::PointCloud<pcl::PointXYZ>::Ptr& input, pcl::PointCloud<pcl::PointXYZ>::Ptr& output) {
+    static void box_filter(pcl::PointCloud<pcl::PointXYZ>::Ptr& input, pcl::PointCloud<pcl::PointXYZ>::Ptr& output) {
 
         // pcl::PointCloud<pcl::PointXYZ>::Ptr box_filtered_cloud(new pcl::PointCloud<pcl::PointXYZ>());
         pcl::CropBox<pcl::PointXYZ> box_filter;
@@ -89,7 +86,7 @@ private:
     rclcpp::Logger logger_;
 
     std::string output_filename_;
-    int record_frame_num_       = 30;
+    int record_frame_num_       = 100;
     int pointcloud_frame_count_ = 0;
     PointCloudT::Ptr integral_pointcloud_;
     rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr pointcloud_subscriber_;
