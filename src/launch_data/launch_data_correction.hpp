@@ -24,10 +24,13 @@ public:
     }
 
 private:
-    DartCalibrationData data_collection_[2]{
-        // 25000mm
-        {1000,  0.0,   0.0},
-        {1001, 36.8, 673.0},
+    DartCalibrationData data_collection_[5]{
+
+        {0, 37.0,   0.0},
+        {1, 36.8, 673.0},
+        {2, 38.0,   720},
+        {3, 37.5,   720},
+        {4, 36.5,   720}
     };
 };
 

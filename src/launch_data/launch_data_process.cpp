@@ -1,3 +1,4 @@
+#include "launch_data_correction.hpp"
 #include <cmath>
 #include <eigen3/Eigen/Dense>
 #include <opencv2/core/types.hpp>
@@ -6,7 +7,6 @@
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/switch.hpp>
-
 namespace rmcs_dart_guide {
 
 // TODO: 单发校准相关
@@ -35,8 +35,13 @@ public:
         if (*input_switch_left_ == rmcs_msgs::Switch::UP && *input_switch_right_ == rmcs_msgs::Switch::DOWN) {
             pitch_default_setpoint_ = pitch_default_setpoint_ + 0.0001 * input_joystick_left_->x();
         }
-
         *pitch_angle_setpoint_ = pitch_default_setpoint_;
+
+        // } else {
+        //     *pitch_angle_setpoint_ = launch_data_collection_.get_dart_calibration_data(*launch_count_ % 4).second;
+        // }
+
+        // RCLCPP_INFO(logger_, "launch_count:%d", *launch_count_);
     }
 
 private:
@@ -52,6 +57,8 @@ private:
     InputInterface<rmcs_msgs::Switch> input_switch_right_;
     InputInterface<Eigen::Vector2d> input_joystick_left_;
     InputInterface<Eigen::Vector2d> input_joystick_right_;
+
+    LaunchData launch_data_collection_;
 };
 } // namespace rmcs_dart_guide
 #include <pluginlib/class_list_macros.hpp>
