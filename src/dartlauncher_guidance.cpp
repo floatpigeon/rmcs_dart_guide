@@ -10,6 +10,7 @@
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/game_stage.hpp>
 #include <rmcs_msgs/robot_id.hpp>
+#include <rmcs_msgs/robots_hp.hpp>
 #include <rmcs_msgs/switch.hpp>
 
 namespace rmcs_dart_guide {
@@ -22,7 +23,12 @@ public:
         : Node(get_component_name(), rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
         , logger_(get_logger()) {
 
-        guidelight_yaw_setpoint_ = get_parameter("guidelight_yaw_setpoint").as_double();
+        // guidelight_yaw_setpoint_ = get_parameter("guidelight_yaw_setpoint").as_double();
+
+        base_first_fric_control_velocity_     = get_parameter("base_first_fric_control_velocity").as_double();
+        base_second_fric_control_velocity_    = get_parameter("base_second_fric_control_velocity").as_double();
+        outpost_first_fric_control_velocity_  = get_parameter("outpost_first_fric_control_velocity").as_double();
+        outpost_second_fric_control_velocity_ = get_parameter("outpost_second_fric_control_velocity").as_double();
 
         register_input("/dart_guide/camera/target_position", target_position_, false);
         register_output("/dart_guide/yaw_angle_error", yaw_angle_error_, nan);
@@ -40,35 +46,53 @@ public:
         register_input("/referee/game/stage", game_stage_);
         register_input("/referee/id", robot_id_);
         register_input("/referee/dart/remaining_time", dart_remaining_time_);
+        register_input("/referee/outpost_hp/red", red_outpost_hp_);
+        register_input("/referee/outpost_hp/blue", blue_outpost_hp_);
+
+        register_output("/dart_guide/first_fric_velocity_setpoint", first_fric_velocity_setpoint_, nan);
+        register_output("/dart_guide/second_fric_velocity_setpoint", second_fric_velocity_setpoint_, nan);
     }
 
     void update() override {
-        // if (game_stage_.ready()) {
-        //     // if (*game_stage_ == rmcs_msgs::GameStage::STARTED) {
-        //     //     RCLCPP_INFO(logger_, "start");
-        //     // } else if (*game_stage_ == rmcs_msgs::GameStage::REFEREE_CHECK) {
-        //     //     RCLCPP_INFO(logger_, "check");
-        //     // } else if (*game_stage_ == rmcs_msgs::GameStage::UNKNOWN) {
-        //     //     RCLCPP_INFO(logger_, "unknow");
-        //     // }
 
-        //     // if (*robot_id_ == rmcs_msgs::RobotId::RED_DART || *robot_id_ == rmcs_msgs::RobotId::BLUE_DART) {
-        //     //     RCLCPP_INFO(logger_, "dart_ready");
-        //     // }
+        // guidelight_yaw_setpoint_ = launch_data_collection_.get_dart_calibration_data(launch_count_ % 4).first;
 
-        //     RCLCPP_INFO(logger_, "time:%hhu", *dart_remaining_time_);
-        // } else if (!game_stage_.ready()) {
-        //     RCLCPP_INFO(logger_, "no data");
-        // }
+        if (*robot_id_ == rmcs_msgs::RobotId::RED_DART) {
+            enemy_outpost_hp_ = *blue_outpost_hp_;
+        } else if (*robot_id_ == rmcs_msgs::RobotId::BLUE_DART) {
+            enemy_outpost_hp_ = *red_outpost_hp_;
+        }
 
-        // RCLCPP_INFO(logger_, "error:%lf,,current:(%d,%d)", *yaw_angle_error_, target_position_->x,
-        // target_position_->y);
+        if (enemy_outpost_hp_ > 0) {
+            *first_fric_velocity_setpoint_ =
+                launch_data_collection_.get_launch_parameter(launch_count_ % 4, DartTarget::OUTPOST)
+                    .first_fric_velocity;
+            *second_fric_velocity_setpoint_ =
+                launch_data_collection_.get_launch_parameter(launch_count_ % 4, DartTarget::OUTPOST)
+                    .seconnd_fric_velocity;
+            guidelight_yaw_setpoint_ =
+                launch_data_collection_.get_launch_parameter(launch_count_ % 4, DartTarget::OUTPOST).yaw_setpoint;
 
-        manual_control();
-        guide_ready_judge();
+        } else {
+            *first_fric_velocity_setpoint_ =
+                launch_data_collection_.get_launch_parameter(launch_count_ % 4, DartTarget::BASE).first_fric_velocity;
+            *second_fric_velocity_setpoint_ =
+                launch_data_collection_.get_launch_parameter(launch_count_ % 4, DartTarget::BASE).seconnd_fric_velocity;
 
-        // auto_control();
-        // guide_ready_judge_auto();
+            guidelight_yaw_setpoint_ =
+                launch_data_collection_.get_launch_parameter(launch_count_ % 4, DartTarget::BASE).yaw_setpoint;
+        }
+
+        // manual_control();
+        // guide_ready_judge();
+
+        auto_control();
+        guide_ready_judge_auto();
+        // launch_velocity_select();
+
+        //
+        // RCLCPP_INFO(logger_, "guide:%d,ready:%d", dart_guide_enable_ ? 1 : 0, *guide_ready_ ? 1 : 0);
+        RCLCPP_INFO(logger_, "fric_v:%lf,hp:%f", *first_fric_velocity_setpoint_, enemy_outpost_hp_);
     }
 
 private:
@@ -124,18 +148,24 @@ private:
                 launch_count_++;
                 count_lock_ = true;
                 RCLCPP_INFO(logger_, "launch_count:%d", launch_count_);
+                guide_ready_judge_count_ = 0;
             }
             *guide_ready_ = false;
         }
 
-        //
-        // if (*input_switch_left_ == rmcs_msgs::Switch::UP && *input_switch_right_ == rmcs_msgs::Switch::UP) {
+        //  // 场下
+        // if (*input_switch_left_ == rmcs_msgs::Switch::UP) {
         //     dart_guide_enable_ = true;
+        //     if (*input_switch_right_ == rmcs_msgs::Switch::UP) {
+        //         enemy_outpost_hp_ = 0;
+        //     } else if (*input_switch_right_ == rmcs_msgs::Switch::MIDDLE) {
+        //         enemy_outpost_hp_ = 500;
+        //     }
         // } else {
         //     dart_guide_enable_ = false;
         // };
-        //
 
+        // // 比赛
         if (*game_stage_ == rmcs_msgs::GameStage::STARTED && *dart_remaining_time_ > 5) {
             dart_guide_enable_ = true;
         } else {
@@ -148,34 +178,37 @@ private:
             } else {
                 *yaw_angle_error_ = guidelight_yaw_setpoint_ - target_position_->x;
             }
+        } else {
+            guide_ready_judge_count_ = 0;
         }
     }
 
     void guide_ready_judge_auto() {
-        // if (!dart_guide_enable_) {
-        //     *guide_ready_            = false;
-        //     guide_ready_judge_count_ = 0;
-        //     last_target_point_       = cv::Point2i(-1, -1);
-        //     return;
-        // }
-        // guide_ready_judge_count_++;
-        // if (guide_ready_judge_count_ == 20) {
-        //     last_target_point_ = *target_position_;
-        //     if (target_position_->x < 0 || target_position_->y < 0) {
-        //         return;
-        //     }
-
-        //     if (abs(target_position_->x - last_target_point_.x) + abs(target_position_->y - last_target_point_.y) <
-        //     4) {
-        //         *guide_ready_ = true;
-        //     } else {
-        //     }
-        // }
-
-        if (dart_guide_enable_ && abs(target_position_->x - 720) < 5) {
-            *guide_ready_ = true;
+        if (dart_guide_enable_ && abs(target_position_->x - guidelight_yaw_setpoint_) < 5) {
+            guide_ready_judge_count_++;
+            if (guide_ready_judge_count_ == 500) {
+                *guide_ready_            = true;
+                guide_ready_judge_count_ = 0;
+            }
         }
     }
+
+    void launch_velocity_select() {
+        if (*robot_id_ == rmcs_msgs::RobotId::RED_DART) {
+            enemy_outpost_hp_ = *blue_outpost_hp_;
+        } else if (*robot_id_ == rmcs_msgs::RobotId::BLUE_DART) {
+            enemy_outpost_hp_ = *red_outpost_hp_;
+        }
+
+        if (enemy_outpost_hp_ > 0) {
+            *first_fric_velocity_setpoint_  = outpost_first_fric_control_velocity_;
+            *second_fric_velocity_setpoint_ = outpost_second_fric_control_velocity_;
+        } else {
+            *first_fric_velocity_setpoint_  = base_first_fric_control_velocity_;
+            *second_fric_velocity_setpoint_ = base_second_fric_control_velocity_;
+        }
+    }
+
     int guide_ready_judge_count_;
     cv::Point2i last_target_point_;
 
@@ -194,6 +227,9 @@ private:
 
     InputInterface<rmcs_msgs::GameStage> game_stage_;
     InputInterface<rmcs_msgs::RobotId> robot_id_;
+    InputInterface<uint16_t> red_outpost_hp_;
+    InputInterface<uint16_t> blue_outpost_hp_;
+
     InputInterface<double> conveyor_current_velocity_;
     InputInterface<uint8_t> dart_remaining_time_;
     bool dart_guide_enable_;
@@ -203,6 +239,11 @@ private:
     bool count_lock_  = true;
 
     LaunchData launch_data_collection_;
+    double enemy_outpost_hp_;
+
+    double base_first_fric_control_velocity_, base_second_fric_control_velocity_;
+    double outpost_first_fric_control_velocity_, outpost_second_fric_control_velocity_;
+    OutputInterface<double> first_fric_velocity_setpoint_, second_fric_velocity_setpoint_;
 };
 } // namespace rmcs_dart_guide
 
