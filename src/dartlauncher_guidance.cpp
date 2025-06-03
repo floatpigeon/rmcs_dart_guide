@@ -57,6 +57,44 @@ public:
 
         // guidelight_yaw_setpoint_ = launch_data_collection_.get_dart_calibration_data(launch_count_ % 4).first;
 
+        // correction_debug();
+        // manual_control();
+        // guide_ready_judge();
+
+        update_emenry_outpost_hp();
+        auto_control();
+        guide_ready_judge_auto();
+
+        //
+        // RCLCPP_INFO(logger_, "guide:%d,ready:%d", dart_guide_enable_ ? 1 : 0, *guide_ready_ ? 1 : 0);
+        // RCLCPP_INFO(logger_, "fric_v:%lf,hp:%f", *first_fric_velocity_setpoint_, enemy_outpost_hp_);
+    }
+
+private:
+    // void correction_debug() {
+    //     if (*input_switch_left_ == rmcs_msgs::Switch::UP && *input_switch_right_ == rmcs_msgs::Switch::DOWN) {
+    //         dart_guide_enable_ = false;
+    //         *yaw_angle_error_  = 30 * input_joystick_right_->y();
+    //     } else {
+    //         dart_guide_enable_ = true;
+    //     }
+    //     if (dart_guide_enable_) {
+    //         if (target_position_->x == -1 || target_position_->y == -1) {
+    //             *yaw_angle_error_ = nan;
+    //         } else {
+    //             *yaw_angle_error_ = guidelight_yaw_setpoint_ - target_position_->x;
+    //         }
+    //     }
+
+    //     int num = launch_count_ % 4;
+    //     *first_fric_velocity_setpoint_ =
+    //         launch_data_collection_.get_launch_parameter(num, DartTarget::DEBUG).first_fric_velocity;
+    //     *second_fric_velocity_setpoint_ =
+    //         launch_data_collection_.get_launch_parameter(num, DartTarget::DEBUG).seconnd_fric_velocity;
+    //     guidelight_yaw_setpoint_ = launch_data_collection_.get_launch_parameter(num, DartTarget::DEBUG).yaw_setpoint;
+    // }
+
+    void update_emenry_outpost_hp() {
         if (*robot_id_ == rmcs_msgs::RobotId::RED_DART) {
             enemy_outpost_hp_ = *blue_outpost_hp_;
         } else if (*robot_id_ == rmcs_msgs::RobotId::BLUE_DART) {
@@ -72,30 +110,16 @@ public:
                     .seconnd_fric_velocity;
             guidelight_yaw_setpoint_ =
                 launch_data_collection_.get_launch_parameter(launch_count_ % 4, DartTarget::OUTPOST).yaw_setpoint;
-
         } else {
             *first_fric_velocity_setpoint_ =
                 launch_data_collection_.get_launch_parameter(launch_count_ % 4, DartTarget::BASE).first_fric_velocity;
             *second_fric_velocity_setpoint_ =
                 launch_data_collection_.get_launch_parameter(launch_count_ % 4, DartTarget::BASE).seconnd_fric_velocity;
-
             guidelight_yaw_setpoint_ =
                 launch_data_collection_.get_launch_parameter(launch_count_ % 4, DartTarget::BASE).yaw_setpoint;
         }
-
-        // manual_control();
-        // guide_ready_judge();
-
-        auto_control();
-        guide_ready_judge_auto();
-        // launch_velocity_select();
-
-        //
-        // RCLCPP_INFO(logger_, "guide:%d,ready:%d", dart_guide_enable_ ? 1 : 0, *guide_ready_ ? 1 : 0);
-        RCLCPP_INFO(logger_, "fric_v:%lf,hp:%f", *first_fric_velocity_setpoint_, enemy_outpost_hp_);
     }
 
-private:
     void manual_control() {
         if (*input_switch_left_ == rmcs_msgs::Switch::UP && *input_switch_right_ == rmcs_msgs::Switch::DOWN) {
             dart_guide_enable_ = false;
@@ -165,8 +189,8 @@ private:
         //     dart_guide_enable_ = false;
         // };
 
-        // // 比赛
-        if (*game_stage_ == rmcs_msgs::GameStage::STARTED && *dart_remaining_time_ > 5) {
+        // 比赛
+        if (*game_stage_ == rmcs_msgs::GameStage::STARTED && *dart_remaining_time_ > 4) {
             dart_guide_enable_ = true;
         } else {
             dart_guide_enable_ = false;
@@ -174,7 +198,16 @@ private:
 
         if (dart_guide_enable_) {
             if (target_position_->x == -1 || target_position_->y == -1) {
-                *yaw_angle_error_ = nan;
+                if (enemy_outpost_hp_ > 0) {
+                    premovement_count_ = 0;
+                } else {
+                    premovement_count_++;
+                    if (premovement_count_ < 500) {
+                        *yaw_angle_error_ = -50;
+                    } else {
+                        *yaw_angle_error_ = nan;
+                    }
+                }
             } else {
                 *yaw_angle_error_ = guidelight_yaw_setpoint_ - target_position_->x;
             }
@@ -184,8 +217,14 @@ private:
     }
 
     void guide_ready_judge_auto() {
-        if (dart_guide_enable_ && abs(target_position_->x - guidelight_yaw_setpoint_) < 5) {
+        if (dart_guide_enable_ && abs(target_position_->x - guidelight_yaw_setpoint_) < 3) {
             guide_ready_judge_count_++;
+
+            if (enemy_outpost_hp_ > 0 && launch_count_ >= 2) {
+                *guide_ready_ = false;
+                return;
+            }
+
             if (guide_ready_judge_count_ == 500) {
                 *guide_ready_            = true;
                 guide_ready_judge_count_ = 0;
@@ -193,21 +232,21 @@ private:
         }
     }
 
-    void launch_velocity_select() {
-        if (*robot_id_ == rmcs_msgs::RobotId::RED_DART) {
-            enemy_outpost_hp_ = *blue_outpost_hp_;
-        } else if (*robot_id_ == rmcs_msgs::RobotId::BLUE_DART) {
-            enemy_outpost_hp_ = *red_outpost_hp_;
-        }
+    // void launch_velocity_select() {
+    //     if (*robot_id_ == rmcs_msgs::RobotId::RED_DART) {
+    //         enemy_outpost_hp_ = *blue_outpost_hp_;
+    //     } else if (*robot_id_ == rmcs_msgs::RobotId::BLUE_DART) {
+    //         enemy_outpost_hp_ = *red_outpost_hp_;
+    //     }
 
-        if (enemy_outpost_hp_ > 0) {
-            *first_fric_velocity_setpoint_  = outpost_first_fric_control_velocity_;
-            *second_fric_velocity_setpoint_ = outpost_second_fric_control_velocity_;
-        } else {
-            *first_fric_velocity_setpoint_  = base_first_fric_control_velocity_;
-            *second_fric_velocity_setpoint_ = base_second_fric_control_velocity_;
-        }
-    }
+    //     if (enemy_outpost_hp_ > 0) {
+    //         *first_fric_velocity_setpoint_  = outpost_first_fric_control_velocity_;
+    //         *second_fric_velocity_setpoint_ = outpost_second_fric_control_velocity_;
+    //     } else {
+    //         *first_fric_velocity_setpoint_  = base_first_fric_control_velocity_;
+    //         *second_fric_velocity_setpoint_ = base_second_fric_control_velocity_;
+    //     }
+    // }
 
     int guide_ready_judge_count_;
     cv::Point2i last_target_point_;
@@ -244,6 +283,8 @@ private:
     double base_first_fric_control_velocity_, base_second_fric_control_velocity_;
     double outpost_first_fric_control_velocity_, outpost_second_fric_control_velocity_;
     OutputInterface<double> first_fric_velocity_setpoint_, second_fric_velocity_setpoint_;
+
+    int premovement_count_ = 0;
 };
 } // namespace rmcs_dart_guide
 

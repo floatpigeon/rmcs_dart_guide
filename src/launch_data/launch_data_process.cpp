@@ -38,18 +38,17 @@ public:
 
     void update() override {
 
-        // if (*input_switch_left_ == rmcs_msgs::Switch::UP && *input_switch_right_ == rmcs_msgs::Switch::DOWN) {
-        //     if (input_joystick_left_->x() != 0)
-        //         pitch_default_setpoint_ = pitch_default_setpoint_
-        //                                 + ((abs(input_joystick_left_->x()) > 0.5) ? 0.001 : 0.0001)
-        //                                       * ((input_joystick_left_->x() > 0) ? 1 : -1);
-        // }
-        // *pitch_angle_setpoint_ = pitch_default_setpoint_;
-
         // *pitch_angle_setpoint_ = launch_data_collection_.get_dart_calibration_data(*launch_count_ % 4).second;
 
         // RCLCPP_INFO(logger_, "launch_count:%d", *launch_count_);
 
+        yaw_auto_aim();
+        // debug();
+        // correction_debug();
+    }
+
+private:
+    void yaw_auto_aim() {
         if (*robot_id_ == rmcs_msgs::RobotId::RED_DART) {
             enemy_outpost_hp_ = *blue_outpost_hp_;
         } else if (*robot_id_ == rmcs_msgs::RobotId::BLUE_DART) {
@@ -65,7 +64,21 @@ public:
         }
     }
 
-private:
+    void debug() {
+        if (*input_switch_left_ == rmcs_msgs::Switch::UP && *input_switch_right_ == rmcs_msgs::Switch::DOWN) {
+            if (input_joystick_left_->x() != 0)
+                pitch_default_setpoint_ = pitch_default_setpoint_
+                                        + ((abs(input_joystick_left_->x()) > 0.5) ? 0.001 : 0.0001)
+                                              * ((input_joystick_left_->x() > 0) ? 1 : -1);
+        }
+        *pitch_angle_setpoint_ = pitch_default_setpoint_;
+    }
+
+    void correction_debug() {
+        *pitch_angle_setpoint_ =
+            launch_data_collection_.get_launch_parameter(*launch_count_ % 4, DartTarget::DEBUG).pitch_setpoint;
+    }
+
     rclcpp::Logger logger_;
 
     OutputInterface<double> pitch_angle_setpoint_;

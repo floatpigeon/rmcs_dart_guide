@@ -11,7 +11,7 @@ struct DartCalibrationData {
     double yaw_calibration_;
 };
 
-enum class DartTarget { OUTPOST, BASE };
+enum class DartTarget { OUTPOST, BASE, DEBUG };
 
 class LaunchData {
 public:
@@ -33,6 +33,9 @@ public:
         } else {
             launch_parameter = base_launch_parameters[launch_num];
         }
+        // } else if (target == DartTarget::DEBUG) {
+        //     launch_parameter = debug_parameters[launch_num];
+        // }
 
         return launch_parameter;
     }
@@ -46,17 +49,24 @@ private:
     };
 
     DartSignalParameter base_launch_parameters[4]{
-        {0, 660, 325, 37.5, 690},
-        {1, 660, 325, 37.0, 690},
-        {2, 660, 325, 36.5, 690},
-        {3, 660, 325, 37.0, 690},
+        {0, 665, 340, 38.3, 710},
+        {1, 665, 340, 37.5, 710}, // +
+        {2, 665, 340, 38.3, 708},
+        {3, 665, 340, 37.5, 708}, // -
     };
 
     DartSignalParameter outpost_launch_parameters[4]{
-        {0, 560, 285, 36.9, 643},
-        {1, 565, 285, 38.0, 647}, //+
-        {2, 565, 285, 36.6, 652},
-        {3, 560, 285, 36.0, 652}, // -
+        {0, 565, 290, 38.0, 647}, // N5,右
+        {1, 565, 290, 38.5, 652}, // N9，中
+        {2, 560, 290, 38.0, 652}, // C13，中
+        {3, 560, 290, 37.5, 643}, // C14，左
+    };
+
+    DartSignalParameter debug_parameters[6]{
+        {1, 565, 290, 38.0, 647}, // N5,右
+        {2, 565, 290, 38.5, 652}, // N9，中
+        {3, 560, 290, 38.0, 652}, // C13，中
+        {0, 560, 290, 37.5, 643}, // C14，左
     };
 };
 
@@ -75,4 +85,14 @@ b17: v565-285,p 37.5, y:647
 b12: v560-285,p:36.6,y:652
 
 a15: v560-285,p:36.5,y:652
+*/
+
+/*
+base:
+
+b13: v665-332,p38.0,
+
+b18: v665-332,p38.0,
+
+a15: v665-335,p37.4,
 */

@@ -1,5 +1,6 @@
 #include "camera/identifier.hpp"
 #include "camera/tracker.hpp"
+#include <chrono>
 #include <hikcamera/image_capturer.hpp>
 #include <memory>
 #include <mutex>
@@ -41,15 +42,23 @@ public:
         register_output("/dart_guide/camera/camera_image", camera_image_);
         register_output("/dart_guide/camera/display_image", display_image_);
         register_output("/dart_guide/camera/target_position", target_position_, PointT(-1, -1));
-        camera_thread_ = std::thread(&DartCameraController::camera_update, this);
+        camera_thread_     = std::thread(&DartCameraController::camera_update, this);
+        update_time_point_ = std::chrono::steady_clock::now();
     }
 
-    void update() override {}
+    void update() override {
+        // auto current = std::chrono::steady_clock::now();
+        // auto delta   = std::chrono::duration_cast<std::chrono::microseconds>(current - update_time_point_);
+        // RCLCPP_INFO(logger_, "fps:%ld", 1000000 / delta.count());
+        // update_time_point_ = current;
+    }
+    std::chrono::steady_clock::time_point update_time_point_;
 
 private:
     void camera_update() {
         while (true) {
-            cv::Mat read   = image_capture_->read();
+            cv::Mat read = image_capture_->read();
+            cv::line(read, cv::Point(645, 0), cv::Point(645, 720), cv::Scalar(255, 0, 255), 1);
             *camera_image_ = read;
 
             cv::Mat preprocessed_image;
@@ -98,6 +107,8 @@ private:
                     identifdier_.Init();
                 }
             }
+
+            cv::line(display, cv::Point(0, 645), cv::Point(720, 645), cv::Scalar(255, 0, 255), 1);
 
             *display_image_ = display;
         }
